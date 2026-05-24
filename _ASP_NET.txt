@@ -1,0 +1,296 @@
+================================================================
+     TÀI LIỆU ÔN THI ASP.NET - IS385
+     Copy code theo thứ tự, chỉ sửa tên bảng/cột theo đề
+================================================================
+
+===============================================================
+CÂU 1: SQL TẠO DATABASE
+===============================================================
+-- Sửa: tên DB, tên bảng, tên cột theo đề
+
+CREATE DATABASE QuanLyPhong
+GO
+USE QuanLyPhong
+GO
+
+CREATE TABLE DANHMUC (
+    MaDM INT PRIMARY KEY IDENTITY(1,1),
+    TenDM NVARCHAR(100) NOT NULL
+)
+
+CREATE TABLE MAPHONG (
+    MaP   INT PRIMARY KEY IDENTITY(1,1),
+    TenP  NVARCHAR(100),
+    HinhAnh NVARCHAR(200),
+    DonGia  DECIMAL(18,4),
+    MoTa    NVARCHAR(500),
+    MaDM    INT FOREIGN KEY REFERENCES DANHMUC(MaDM)
+)
+
+INSERT INTO DANHMUC (TenDM) VALUES
+(N'Phòng Đơn'),(N'Phòng Gia Đình'),(N'Phòng Đôi'),(N'Phòng Vip')
+
+INSERT INTO MAPHONG (TenP,HinhAnh,DonGia,MoTa,MaDM) VALUES
+(N'Phòng Đơn A',  'p1.jpg', 300000, N'Mô tả 1', 1),
+(N'Phòng GĐ B',   'p2.jpg', 200000, N'Mô tả 2', 2),
+(N'Phòng Đôi C',  'p3.jpg', 100000, N'Mô tả 3', 3),
+(N'Phòng Vip D',  'p4.jpg', 900000, N'Mô tả 4', 4)
+
+
+===============================================================
+CÂU 2: App_Code\DataProvider.cs
+===============================================================
+-- LƯU Ý: Phải để trong thư mục App_Code
+-- Sửa: Initial Catalog = tên database của đề
+
+using System.Data;
+using System.Data.SqlClient;
+
+public class DataProvider
+{
+    private static DataProvider instance;
+    public static DataProvider Instance
+    {
+        get { if (instance == null) instance = new DataProvider(); return instance; }
+    }
+
+    private string connectionString =
+        @"Data Source=(localdb)\ProjectModels;Initial Catalog=QuanLyPhong;Integrated Security=True";
+
+    public DataTable ExecuteQuery(string query, SqlParameter[] parameters = null)
+    {
+        DataTable dt = new DataTable();
+        using (SqlConnection con = new SqlConnection(connectionString))
+        {
+            using (SqlCommand cmd = new SqlCommand(query, con))
+            {
+                if (parameters != null) cmd.Parameters.AddRange(parameters);
+                SqlDataAdapter da = new SqlDataAdapter(cmd);
+                da.Fill(dt);
+            }
+        }
+        return dt;
+    }
+
+    public int ExecuteNonQuery(string query, SqlParameter[] parameters = null)
+    {
+        using (SqlConnection con = new SqlConnection(connectionString))
+        {
+            con.Open();
+            using (SqlCommand cmd = new SqlCommand(query, con))
+            {
+                if (parameters != null) cmd.Parameters.AddRange(parameters);
+                return cmd.ExecuteNonQuery();
+            }
+        }
+    }
+
+    public object ExecuteScalar(string query, SqlParameter[] parameters = null)
+    {
+        using (SqlConnection con = new SqlConnection(connectionString))
+        {
+            con.Open();
+            using (SqlCommand cmd = new SqlCommand(query, con))
+            {
+                if (parameters != null) cmd.Parameters.AddRange(parameters);
+                return cmd.ExecuteScalar();
+            }
+        }
+    }
+}
+
+
+===============================================================
+CÂU 3: MasterPage.master
+===============================================================
+-- Sửa: SELECT * FROM [TÊN BẢNG DANH MỤC]
+--       Eval("TenDM") → đổi theo tên cột của đề
+
+<%@ Master Language="C#" AutoEventWireup="true"
+    CodeFile="MasterPage.master.cs"
+    Inherits="MasterPage" %>
+<!DOCTYPE html>
+<html>
+<head runat="server">
+    <title>Quản Lý Phòng</title>
+    <style>
+        body { font-family: Arial; margin: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        td { border: 1px solid #ccc; vertical-align: top; padding: 8px; }
+        .menu { width: 180px; background: #f5f5f5; }
+        .menu h3 { background: #333; color: white; padding: 8px; margin: 0; font-size:14px; }
+        .menu a { display: block; color: blue; padding: 4px 8px; text-decoration: underline; }
+        .thongke { width: 200px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <form id="form1" runat="server">
+    <table>
+        <tr>
+            <td class="menu">
+                <h3>DANH MỤC LOẠI PHÒNG</h3>
+                <asp:Repeater ID="rptDanhMuc" runat="server">
+                    <ItemTemplate>
+                        <a href='DanhSachPhong.aspx?MaDM=<%# Eval("MaDM") %>'>
+                            <%# Eval("TenDM") %>
+                        </a>
+                    </ItemTemplate>
+                </asp:Repeater>
+            </td>
+            <td>
+                <asp:ContentPlaceHolder ID="ContentPlaceHolder1" runat="server">
+                </asp:ContentPlaceHolder>
+            </td>
+            <td class="thongke">
+                <ol>
+                    <li>Tổng số phòng trong DTB:
+                        <b style="color:red;">
+                            <asp:Label ID="lblTongPhong" runat="server"></asp:Label>
+                        </b>
+                    </li>
+                    <li>Tổng số Phòng Đơn:
+                        <b style="color:red;">
+                            <asp:Label ID="lblPhongDon" runat="server"></asp:Label>
+                        </b>
+                    </li>
+                </ol>
+            </td>
+        </tr>
+    </table>
+    </form>
+</body>
+</html>
+
+
+===============================================================
+CÂU 3: MasterPage.master.cs
+===============================================================
+-- Sửa: tên bảng, tên cột, điều kiện WHERE theo đề
+
+using System;
+using System.Data;
+
+public partial class MasterPage : System.Web.UI.MasterPage
+{
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (!IsPostBack)
+        {
+            LoadDanhMuc();
+            LoadThongKe();
+        }
+    }
+
+    void LoadDanhMuc()
+    {
+        DataTable dt = DataProvider.Instance.ExecuteQuery("SELECT * FROM DANHMUC");
+        rptDanhMuc.DataSource = dt;
+        rptDanhMuc.DataBind();
+    }
+
+    void LoadThongKe()
+    {
+        object tongPhong = DataProvider.Instance.ExecuteScalar("SELECT COUNT(*) FROM MAPHONG");
+        lblTongPhong.Text = tongPhong.ToString();
+
+        object phongDon = DataProvider.Instance.ExecuteScalar(
+            "SELECT COUNT(*) FROM MAPHONG WHERE MaDM = " +
+            "(SELECT MaDM FROM DANHMUC WHERE TenDM = N'Phòng Đơn')");
+        lblPhongDon.Text = phongDon.ToString();
+    }
+}
+
+
+===============================================================
+CÂU 4: DanhSachPhong.aspx
+===============================================================
+-- Sửa: Eval("TenP"), Eval("DonGia"), Eval("HinhAnh") theo tên cột đề
+
+<%@ Page Title="" Language="C#" MasterPageFile="~/MasterPage.master"
+    AutoEventWireup="true" CodeFile="DanhSachPhong.aspx.cs"
+    Inherits="DanhSachPhong" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="ContentPlaceHolder1" runat="server">
+    <asp:DataList ID="dlPhong" runat="server" RepeatColumns="4" RepeatDirection="Horizontal">
+        <ItemTemplate>
+            <div style="width:150px;border:1px solid #ccc;margin:5px;padding:5px;text-align:center;">
+                <img src='Images/<%# Eval("HinhAnh") %>' width="130" height="100" /><br />
+                <b>Tên SP:</b> <%# Eval("TenP") %><br />
+                <b>Đơn Giá:</b>
+                <span style="color:red;font-weight:bold;">
+                    <%# string.Format("{0:N4}", Eval("DonGia")) %> VND
+                </span><br />
+                <a href="#">xem chi tiết</a>
+            </div>
+        </ItemTemplate>
+    </asp:DataList>
+</asp:Content>
+
+
+===============================================================
+CÂU 4: DanhSachPhong.aspx.cs
+===============================================================
+-- Sửa: tên bảng MAPHONG, tên cột MaDM theo đề
+
+using System;
+using System.Data;
+using System.Data.SqlClient;
+
+public partial class DanhSachPhong : System.Web.UI.Page
+{
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (!IsPostBack) LoadPhong();
+    }
+
+    void LoadPhong()
+    {
+        string query = "SELECT * FROM MAPHONG";
+        SqlParameter[] para = null;
+
+        if (Request.QueryString["MaDM"] != null)
+        {
+            query = "SELECT * FROM MAPHONG WHERE MaDM = @MaDM";
+            para = new SqlParameter[]
+            {
+                new SqlParameter("@MaDM", Request.QueryString["MaDM"])
+            };
+        }
+
+        DataTable dt = DataProvider.Instance.ExecuteQuery(query, para);
+        dlPhong.DataSource = dt;
+        dlPhong.DataBind();
+    }
+}
+
+
+================================================================
+LƯU Ý QUAN TRỌNG KHI VÀO PHÒNG THI
+================================================================
+
+1. TẠO PROJECT:
+   - Chọn ASP.NET Web Application (.NET Framework)
+   - Template: Web Forms (có sẵn) hoặc Empty + tick Web Forms
+
+2. CONNECTION STRING - nhìn vào SSMS lúc đăng nhập:
+   - Thấy (localdb)\ProjectModels → dùng y chang
+   - Thấy .\SQLEXPRESS → đổi thành Data Source=.\SQLEXPRESS
+   - Thấy localhost → đổi thành Data Source=localhost
+
+3. DATAPROVIDIER.CS:
+   - PHẢI để trong thư mục App_Code
+   - Click phải Project → Add → Add ASP.NET Folder → App_Code
+
+4. CÁC FILE .aspx VÀ .master:
+   - Dùng CodeFile (KHÔNG dùng CodeBehind)
+   - Inherits="MasterPage" (KHÔNG có namespace phía trước)
+   - Inherits="DanhSachPhong" (KHÔNG có namespace phía trước)
+
+5. FILE .cs (code-behind):
+   - KHÔNG có namespace { } bao ngoài
+   - Chỉ viết thẳng: public partial class ...
+
+6. THỨ TỰ LÀM:
+   SQL → DataProvider.cs → MasterPage → DanhSachPhong → Chạy thử
+
+================================================================
