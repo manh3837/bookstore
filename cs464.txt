@@ -1,0 +1,1645 @@
+--bai 1
+
+ <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Hàng 1: Mã sinh viên và Họ tên -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="95"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Mã SV:" VerticalAlignment="Center"/>
+            <TextBox x:Name="txtMaSV" Grid.Column="1" Height="28" Margin="0,0,14,0"
+                     VerticalContentAlignment="Center" MaxLength="10"/>
+            <TextBlock Grid.Column="2" Text="Họ tên:" VerticalAlignment="Center"/>
+            <TextBox x:Name="txtHoTen" Grid.Column="3" Height="28"
+                     VerticalContentAlignment="Center" MaxLength="100"/>
+        </Grid>
+
+        <!-- Hàng 2: Ngày sinh và Giới tính -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="95"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Ngày sinh:" VerticalAlignment="Center"/>
+            <DatePicker x:Name="dpNgaySinh" Grid.Column="1" Height="28"
+                        Margin="0,0,14,0" SelectedDateFormat="Short"/>
+            <TextBlock Grid.Column="2" Text="Giới tính:" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                <RadioButton x:Name="rbNam" GroupName="GioiTinh" Content="Nam"
+                             Margin="0,0,20,0" VerticalAlignment="Center"/>
+                <RadioButton x:Name="rbNu" GroupName="GioiTinh" Content="Nữ"
+                             Margin="0,0,20,0" VerticalAlignment="Center"/>
+                <RadioButton x:Name="rbKhac" GroupName="GioiTinh" Content="Khác"
+                             VerticalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Hàng 3: Khoa -->
+        <Grid Grid.Row="2" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="95"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Khoa:" VerticalAlignment="Center"/>
+            <ComboBox x:Name="cboKhoa" Grid.Column="1" Height="29" Margin="0,0,14,0"
+                      VerticalContentAlignment="Center"
+                      DisplayMemberPath="TenKhoa" SelectedValuePath="MaKhoa"/>
+        </Grid>
+
+        <!-- DataGrid -->
+        <DataGrid x:Name="dgvSinhVien" Grid.Row="3"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  SelectionMode="Single" SelectionUnit="FullRow"
+                  HeadersVisibility="Column" GridLinesVisibility="All"
+                  SelectionChanged="dgvSinhVien_SelectionChanged">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Mã SV" Binding="{Binding MaSV}" Width="1*"/>
+                <DataGridTextColumn Header="Họ tên" Binding="{Binding HoTen}" Width="2*"/>
+                <DataGridTextColumn Header="Ngày sinh"
+                                    Binding="{Binding NgaySinh, StringFormat={}{0:dd/MM/yyyy}}"
+                                    Width="1.4*"/>
+                <DataGridTextColumn Header="Giới tính" Binding="{Binding GioiTinh}" Width="1*"/>
+                <DataGridTextColumn Header="Khoa" Binding="{Binding KHOA.TenKhoa}" Width="2*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Hàng cuối: nút chức năng -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center"
+                    Margin="0,18,0,0">
+            <Button x:Name="btnThem" Content="Thêm" Width="110" Height="31"
+                    Margin="0,0,20,0" Click="btnThem_Click"/>
+            <Button x:Name="btnSua" Content="Sửa" Width="110" Height="31"
+                    Margin="0,0,20,0" Click="btnSua_Click"/>
+            <Button x:Name="btnXoa" Content="Xóa" Width="110" Height="31"
+                    Margin="0,0,20,0" Click="btnXoa_Click"/>
+            <Button x:Name="btnLamMoi" Content="Làm mới" Width="110" Height="31"
+                    Click="btnLamMoi_Click"/>
+        </StackPanel>
+    </Grid>
+
+using System;
+using System.Data.Entity;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using QUANLYSINHVIEN.Model;
+
+namespace QUANLYSINHVIEN
+{
+    public partial class MainWindow : Window
+    {
+        private bool _dangTaiDuLieu;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+        }
+
+        // Câu 3: Tải khoa vào ComboBox và sinh viên vào DataGrid (Entity Framework Database First).
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                TaiDuLieu();
+                XoaTrangForm();
+            }
+            catch (Exception ex)
+            {
+                BaoLoi("Không thể kết nối CSDL. Hãy chạy file SQL và kiểm tra App.config.", ex);
+            }
+        }
+
+        private void TaiDuLieu()
+        {
+            _dangTaiDuLieu = true;
+            try
+            {
+                using (var db = new QLSINHVIENEntities())
+                {
+                    // AsNoTracking để có dữ liệu mới nhất và không lưu trạng thái chỉnh sửa của DataGrid.
+                    cboKhoa.ItemsSource = db.KHOAs.AsNoTracking()
+                        .OrderBy(k => k.TenKhoa).ToList();
+
+                    // Include(KHOA) để hiển thị TenKhoa ngay cả sau khi đóng DbContext.
+                    dgvSinhVien.ItemsSource = db.SINHVIENs.AsNoTracking()
+                        .Include(s => s.KHOA)
+                        .OrderBy(s => s.MaSV)
+                        .ToList();
+                }
+            }
+            finally
+            {
+                _dangTaiDuLieu = false;
+            }
+        }
+
+        // Câu 4: Khi chọn một dòng, hiển thị đầy đủ dữ liệu lên các control nhập liệu.
+        private void dgvSinhVien_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_dangTaiDuLieu) return;
+
+            var sv = dgvSinhVien.SelectedItem as SINHVIEN;
+            if (sv == null) return;
+
+            txtMaSV.Text = sv.MaSV;
+            txtMaSV.IsReadOnly = true; // Không cho đổi mã khóa chính khi sửa.
+            txtHoTen.Text = sv.HoTen;
+            dpNgaySinh.SelectedDate = sv.NgaySinh;
+            rbNam.IsChecked = sv.GioiTinh == "Nam";
+            rbNu.IsChecked = sv.GioiTinh == "Nữ";
+            rbKhac.IsChecked = sv.GioiTinh == "Khác";
+            cboKhoa.SelectedValue = sv.MaKhoa;
+        }
+
+        // Câu 4: Làm mới form, bỏ chọn và tải lại DataGrid.
+        private void btnLamMoi_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                TaiDuLieu();
+                XoaTrangForm();
+            }
+            catch (Exception ex)
+            {
+                BaoLoi("Không tải lại được dữ liệu.", ex);
+            }
+        }
+
+        private void XoaTrangForm()
+        {
+            dgvSinhVien.SelectedItem = null;
+            txtMaSV.IsReadOnly = false;
+            txtMaSV.Clear();
+            txtHoTen.Clear();
+            dpNgaySinh.SelectedDate = null;
+            rbNam.IsChecked = false;
+            rbNu.IsChecked = false;
+            rbKhac.IsChecked = false;
+            cboKhoa.SelectedIndex = -1;
+            txtMaSV.Focus();
+        }
+
+        // Dùng chung cho Thêm và Sửa: kiểm tra dữ liệu nhập.
+        private bool LayThongTinNhap(out string maSV, out string hoTen,
+            out DateTime ngaySinh, out string gioiTinh, out string maKhoa)
+        {
+            maSV = txtMaSV.Text.Trim();
+            hoTen = txtHoTen.Text.Trim();
+            ngaySinh = DateTime.MinValue;
+            gioiTinh = null;
+            maKhoa = cboKhoa.SelectedValue as string;
+
+            if (string.IsNullOrWhiteSpace(maSV))
+            {
+                MessageBox.Show("Vui lòng nhập mã sinh viên.");
+                txtMaSV.Focus();
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(hoTen))
+            {
+                MessageBox.Show("Vui lòng nhập họ tên.");
+                txtHoTen.Focus();
+                return false;
+            }
+            if (!dpNgaySinh.SelectedDate.HasValue)
+            {
+                MessageBox.Show("Vui lòng chọn ngày sinh.");
+                return false;
+            }
+            ngaySinh = dpNgaySinh.SelectedDate.Value;
+
+            if (rbNam.IsChecked == true) gioiTinh = "Nam";
+            else if (rbNu.IsChecked == true) gioiTinh = "Nữ";
+            else if (rbKhac.IsChecked == true) gioiTinh = "Khác";
+
+            if (gioiTinh == null)
+            {
+                MessageBox.Show("Vui lòng chọn giới tính.");
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(maKhoa))
+            {
+                MessageBox.Show("Vui lòng chọn khoa.");
+                return false;
+            }
+            return true;
+        }
+
+        // Câu 5: THÊM - INSERT vào CSDL, tải lại DataGrid.
+        private void btnThem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!LayThongTinNhap(out string maSV, out string hoTen,
+                    out DateTime ngaySinh, out string gioiTinh, out string maKhoa)) return;
+
+            try
+            {
+                using (var db = new QLSINHVIENEntities())
+                {
+                    if (db.SINHVIENs.Any(s => s.MaSV == maSV))
+                    {
+                        MessageBox.Show("Mã sinh viên đã tồn tại.", "Thông báo",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    var sv = new SINHVIEN
+                    {
+                        MaSV = maSV,
+                        HoTen = hoTen,
+                        NgaySinh = ngaySinh,
+                        GioiTinh = gioiTinh,
+                        MaKhoa = maKhoa
+                    };
+                    db.SINHVIENs.Add(sv);
+                    db.SaveChanges();
+                }
+
+                TaiDuLieu();
+                XoaTrangForm();
+                MessageBox.Show("Thêm sinh viên thành công!");
+            }
+            catch (Exception ex)
+            {
+                BaoLoi("Không thể thêm sinh viên.", ex);
+            }
+        }
+
+        // Câu 5: SỬA - cập nhật sinh viên đang chọn, giữ nguyên khóa chính MaSV.
+        private void btnSua_Click(object sender, RoutedEventArgs e)
+        {
+            var dangChon = dgvSinhVien.SelectedItem as SINHVIEN;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Hãy chọn sinh viên cần sửa trong DataGrid.");
+                return;
+            }
+            if (!LayThongTinNhap(out string maSV, out string hoTen,
+                    out DateTime ngaySinh, out string gioiTinh, out string maKhoa)) return;
+
+            try
+            {
+                using (var db = new QLSINHVIENEntities())
+                {
+                    var sv = db.SINHVIENs.Find(dangChon.MaSV);
+                    if (sv == null)
+                    {
+                        MessageBox.Show("Sinh viên không còn tồn tại trong CSDL.");
+                        TaiDuLieu();
+                        XoaTrangForm();
+                        return;
+                    }
+                    sv.HoTen = hoTen;
+                    sv.NgaySinh = ngaySinh;
+                    sv.GioiTinh = gioiTinh;
+                    sv.MaKhoa = maKhoa;
+                    db.SaveChanges();
+                }
+
+                TaiDuLieu();
+                XoaTrangForm();
+                MessageBox.Show("Sửa sinh viên thành công!");
+            }
+            catch (Exception ex)
+            {
+                BaoLoi("Không thể sửa sinh viên.", ex);
+            }
+        }
+
+        // Câu 5: XÓA - xóa sinh viên đang chọn, có hộp thoại xác nhận.
+        private void btnXoa_Click(object sender, RoutedEventArgs e)
+        {
+            var dangChon = dgvSinhVien.SelectedItem as SINHVIEN;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Hãy chọn sinh viên cần xóa trong DataGrid.");
+                return;
+            }
+
+            var traLoi = MessageBox.Show(
+                $"Bạn có chắc muốn xóa sinh viên {dangChon.MaSV} - {dangChon.HoTen}?",
+                "Xác nhận xóa", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (traLoi != MessageBoxResult.Yes) return;
+
+            try
+            {
+                using (var db = new QLSINHVIENEntities())
+                {
+                    var sv = db.SINHVIENs.Find(dangChon.MaSV);
+                    if (sv == null)
+                    {
+                        MessageBox.Show("Sinh viên không còn tồn tại trong CSDL.");
+                    }
+                    else
+                    {
+                        db.SINHVIENs.Remove(sv);
+                        db.SaveChanges();
+                        MessageBox.Show("Xóa sinh viên thành công!");
+                    }
+                }
+
+                TaiDuLieu();
+                XoaTrangForm();
+            }
+            catch (Exception ex)
+            {
+                BaoLoi("Không thể xóa sinh viên.", ex);
+            }
+        }
+
+        private void BaoLoi(string thongBao, Exception ex)
+        {
+            // GetBaseException() thường trả về lỗi SQL Server chi tiết và dễ kiểm tra hơn.
+            MessageBox.Show(thongBao + "\n\nChi tiết: " + ex.GetBaseException().Message,
+                "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+}
+
+
+
+
+---bai 2
+  <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="Hệ thống"/>
+            <MenuItem Header="Quản lý"/>
+            <MenuItem Header="Trợ giúp"/>
+        </Menu>
+        <StatusBar DockPanel.Dock="Bottom">
+            <TextBlock Text="Trạng thái sẵn sàng"/>
+        </StatusBar>
+        <Grid Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <GroupBox Header="Thông tin sinh viên" Grid.Column="0" Margin="5">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Label Grid.Row="0" Grid.Column="0" Content="Mã số sinh viên (MSSV):" Margin="5"/>
+                    <TextBox x:Name="txt_MaSV" Grid.Row="0" Grid.Column="1" Margin="5" />
+
+                    <Label Grid.Row="1" Grid.Column="0" Content="Họ tên:" Margin="5"/>
+                    <TextBox x:Name="txt_HoTen" Grid.Row="1" Grid.Column="1" Margin="5"/>
+
+                    <Label Grid.Row="2" Grid.Column="0" Content="Địa chỉ:" Margin="5"/>
+                    <TextBox x:Name="txt_DiaChi" Grid.Row="2" Grid.Column="1" Margin="5" Height="60"/>
+
+                    <Label Grid.Row="3" Grid.Column="0" Content="Giới tính:" Margin="5"/>
+                    <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="5">
+                        <RadioButton x:Name="rdb_nam" Content="Nam" Margin="5"/>
+                        <RadioButton x:Name="rdb_nu" Content="Nữ" Margin="5"/>
+                        <RadioButton x:Name="rdb_khac" Content="Khác" Margin="5"/>
+                    </StackPanel>
+                    <Label Content="Ngày Sinh" Grid.Row="4" Grid.Column="0" Margin="5"/>
+                    <DatePicker x:Name="dp_NgaySinh" Grid.Row="4" Grid.Column="1" Margin="5"/>
+
+                    <Label Grid.Row="5" Grid.Column="0" Content="Chọn môn học:" Margin="5"/>
+                    <ComboBox Grid.Row="5" Grid.Column="1" x:Name="cbb_Mon"  Margin="5"/>
+
+                    <DataGrid AutoGenerateColumns="False" SelectionChanged="DG_SinhVien_SelectionChanged" ColumnWidth="Auto" x:Name="DG_SinhVien" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Margin="5">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Mã SV" Binding="{Binding MaSV}"  />
+                            <DataGridTextColumn Header="Họ tên" Binding="{Binding HoTen}"   />
+                            <DataGridTextColumn Header="Địa chỉ" Binding="{Binding DiaChi}"  />
+                            <DataGridTextColumn Header="Giới tính" Binding="{Binding GioiTinh}"   />
+                            <DataGridTextColumn Header="Ngày sinh" Binding="{Binding NgaySinh, StringFormat=dd/MM/yyyy}" />
+                            <DataGridTextColumn Header="Mã môn" Binding="{Binding MaMon}"   />
+                            <DataGridTextColumn Header="Tên môn" Binding="{Binding MONHOC.TenMon}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </GroupBox>
+            <GroupBox Header="Chức năng" Grid.Column="1" Margin="5">
+                <WrapPanel>
+                    <Button Click="Button_Load" Content="Load dữ liệu" Width="100" Margin="5"/>
+                    <Button Click="Button_Them" Content="Thêm" Width="100" Margin="5"/>
+                    <Button Click="Button_Sua" Content="Sửa" Width="100" Margin="5"/>
+                    <Button Click="Button_xoa" Content="Xóa" Width="100" Margin="5"/>
+                    <Button Click="Button_Tim" Content="Tìm kiếm" Width="100" Margin="5"/>
+                    <TextBox x:Name="txt_tim" Width="200" Margin="5"></TextBox>
+                </WrapPanel>
+            </GroupBox>
+        </Grid>
+    </DockPanel>
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace QLSV_C5
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        QLSVEntities db = new QLSVEntities();
+        private SINHVIEN svDangChon;
+        public MainWindow()
+        {
+            InitializeComponent();
+            loadData();
+        }
+        private void loadData()
+        {
+            DG_SinhVien.ItemsSource = db.SINHVIENs.ToList();
+            cbb_Mon.ItemsSource = db.MONHOCs.ToList();
+            cbb_Mon.DisplayMemberPath = "TenMon";
+            cbb_Mon.SelectedValuePath = "MaMon";
+        }
+        private string LayGioiTinh()
+        {
+            if (rdb_khac.IsChecked == true) return "Khác";
+            if (rdb_nam.IsChecked == true) return "Nam";
+            if (rdb_nu.IsChecked == true) return "Nữ";
+            return "";
+        }
+        private DateTime LayNgaySinh()
+        {
+            if (dp_NgaySinh.SelectedDate == null)
+                return DateTime.Now;
+            else
+                return dp_NgaySinh.SelectedDate.Value;
+        }
+        private string LayMonHoc()
+        {
+            if (cbb_Mon.SelectedValue != null)
+                return cbb_Mon.SelectedValue.ToString();
+            else
+                return "";
+        }
+        private void ClearForm()
+        {
+            txt_MaSV.Clear();
+            txt_HoTen.Clear();
+            txt_DiaChi.Clear();
+            rdb_nam.IsChecked = false;
+            rdb_nu.IsChecked = false;
+            rdb_khac.IsChecked = false;
+            dp_NgaySinh.SelectedDate = null;
+            cbb_Mon.SelectedIndex = -1;
+            svDangChon = null;
+        }
+
+        private void Button_Them(object sender, RoutedEventArgs e)
+        {
+            SINHVIEN sv = new SINHVIEN
+            {
+                MaSV = txt_MaSV.Text.Trim(),
+                HoTen = txt_HoTen.Text.Trim(),
+                DiaChi = txt_DiaChi.Text.Trim(),
+                GioiTinh = LayGioiTinh(),
+                NgaySinh = LayNgaySinh(),
+                MaMon = LayMonHoc()
+            };
+            db.SINHVIENs.Add(sv);
+            db.SaveChanges();
+            MessageBox.Show("Đã thêm sinh viên thành công,", "Thông báo",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            loadData();
+            ClearForm();
+        }
+
+        private void Button_Sua(object sender, RoutedEventArgs e)
+        {
+            if (svDangChon == null)
+            {
+                MessageBox.Show("Vui lòng chọn sinh viên để sửa!", "Thông báo",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            else{
+                SINHVIEN sv = db.SINHVIENs.Find(svDangChon.MaSV);
+                if(sv.MaSV != txt_MaSV.Text.Trim())
+                   MessageBox.Show("Không thể sửa mã sinh viên", "Thông báo",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                else{
+                    sv.HoTen = txt_HoTen.Text.Trim();
+                    sv.DiaChi = txt_DiaChi.Text.Trim();
+                    sv.GioiTinh = LayGioiTinh();
+                    sv.NgaySinh = LayNgaySinh();
+                    sv.MaMon = LayMonHoc();
+                    db.SaveChanges();
+                    MessageBox.Show("Đã sửa sinh viên thành công!", "Thông báo",
+                                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                loadData();ClearForm();
+            }
+        }
+
+        private void Button_xoa(object sender, RoutedEventArgs e)
+        {
+            if (svDangChon == null)
+                MessageBox.Show("Vui lòng chọn sinh viên để xóa!", "Thông báo",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            else
+            {
+                db.SINHVIENs.Remove(svDangChon);
+                db.SaveChanges();
+                MessageBox.Show("Đã xóa thành công!", "Thông báo",
+                                    MessageBoxButton.OK, MessageBoxImage.Information);
+                loadData();
+                ClearForm();
+            }
+        }
+
+        private void Button_Tim(object sender, RoutedEventArgs e)
+        {
+            string keyword = txt_tim.Text.Trim().ToLower();
+            List<SINHVIEN> ketQua = new List<SINHVIEN>();
+            if (keyword == ""){
+                MessageBox.Show("Hãy nhập tên sinh viên để tìm", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            else{
+                foreach (SINHVIEN sv in db.SINHVIENs)
+                {
+                    if (sv.HoTen != null && sv.HoTen.ToLower().Contains(keyword)){
+                        ketQua.Add(sv);
+                    }
+                }
+                if (ketQua.Count > 0){
+                    DG_SinhVien.ItemsSource = ketQua;
+                }
+                else{
+                    MessageBox.Show("Không tìm thấy sinh viên nào!", "Thông báo",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+        }
+        private void DG_SinhVien_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            svDangChon = DG_SinhVien.SelectedItem as SINHVIEN;
+            if (svDangChon != null)
+            {
+                txt_MaSV.Text = svDangChon.MaSV;
+                txt_HoTen.Text = svDangChon.HoTen;
+                txt_DiaChi.Text = svDangChon.DiaChi;
+                if (svDangChon.GioiTinh == "Nam") rdb_nam.IsChecked = true;
+                if (svDangChon.GioiTinh == "Nữ") rdb_nu.IsChecked = true;
+                if (svDangChon.GioiTinh == "Khác") rdb_khac.IsChecked = true;
+                dp_NgaySinh.SelectedDate = svDangChon.NgaySinh;
+                cbb_Mon.SelectedValue = svDangChon.MaMon;
+            }
+        }
+        private void Button_Load(object sender, RoutedEventArgs e)
+        {
+            loadData();
+        }
+    }
+}
+
+
+
+--bai 3
+ <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <GroupBox Header="Thông tin sách" Grid.Row="0" Margin="5">
+            <Grid Margin="5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Mã sách:" Grid.Row="0" Grid.Column="0" Margin="5"/>
+                <TextBox x:Name="txtMaSach" Grid.Row="0" Grid.Column="1" Margin="5"/>
+                <TextBlock Text="Tựa sách:" Grid.Row="0" Grid.Column="2" Margin="5"/>
+                <TextBox x:Name="txtTuaSach" Grid.Row="0" Grid.Column="3" Margin="5"/>
+                <TextBlock Text="Tác giả:" Grid.Row="1" Grid.Column="0" Margin="5"/>
+                <TextBox x:Name="txtTacGia" Grid.Row="1" Grid.Column="1" Margin="5"/>
+                <TextBlock Text="Năm XB:" Grid.Row="1" Grid.Column="2" Margin="5"/>
+                <DatePicker x:Name="dpNamXB" Grid.Row="1" Grid.Column="3" Margin="5"/>
+                <TextBlock Text="Thể loại:" Grid.Row="2" Grid.Column="0" Margin="5"/>
+                <ComboBox SelectionChanged="CboTheLoai_SelectionChanged" x:Name="cboTheLoai" Grid.Row="2" Grid.Column="1" Margin="5"/>
+            </Grid>
+        </GroupBox>
+        <GroupBox Header="Danh sách sách" Grid.Row="1" Margin="5">
+            <DataGrid x:Name="dgSach" AutoGenerateColumns="False" CanUserAddRows="False" Margin="5" SelectionChanged="DgSach_SelectionChanged">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Mã sách" Binding="{Binding MaSach}" Width="*"/>
+                    <DataGridTextColumn Header="Tựa sách" Binding="{Binding TuaSach}" Width="2*"/>
+                    <DataGridTextColumn Header="Tác giả" Binding="{Binding TacGia}" Width="*"/>
+                    <DataGridTextColumn Header="Năm XB" Binding="{Binding NamXB,StringFormat=dd/MM/yyyy}" Width="*"/>
+                    <DataGridTextColumn Header="Mã thể loại" Binding="{Binding MaTL}" Width="*"/>
+                    <DataGridTextColumn Header="Thể loại" Binding="{Binding THELOAI.TenTL}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="5">
+            <Button x:Name="btnThem" Click="btn_them" Content="Thêm" Width="100" Margin="5"/>
+            <Button x:Name="btnSua" Click="btn_sua" Content="Sửa" Width="100" Margin="5,5,5,0" Height="19" VerticalAlignment="Top"/>
+            <Button x:Name="btnXoa" Click="btn_xoa" Content="Xóa" Width="100" Margin="5,5,5,0" Height="19" VerticalAlignment="Top"/>
+            <Button x:Name="btnLamMoi" Click="btn_lammoi" Content="Làm mới" Width="100" Margin="5"/>
+            <Button x:Name="btnTimKiem" Click="btn_tim" Content="Tìm kiếm" Width="100" Margin="5"/>
+            <TextBox x:Name="txt_Tim" Width="150" Margin="5"></TextBox>
+        </StackPanel>
+    </Grid>
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace QLTV_C5
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        Database1Entities db = new Database1Entities();
+        private SACH sachDangChon;
+        public MainWindow()
+        {
+            InitializeComponent();
+            loadData();
+        }
+        private void loadData()
+        {
+            dgSach.ItemsSource = db.SACHes.ToList();
+            cboTheLoai.ItemsSource = db.THELOAIs.ToList();
+            cboTheLoai.DisplayMemberPath = "TenTL";
+            cboTheLoai.SelectedValuePath = "MaTL";
+        }
+        private DateTime LayNamXB()
+        {
+            if (dpNamXB.SelectedDate == null)
+                return DateTime.Now;
+            else
+                return dpNamXB.SelectedDate.Value;
+        }
+        private string LayTheLoai()
+        {
+            if (cboTheLoai.SelectedValue != null)
+                return cboTheLoai.SelectedValue.ToString();
+            return "";
+        }
+        private void ClearForm()
+        {
+            txtMaSach.Clear();
+            txtTuaSach.Clear();
+            txtTacGia.Clear();
+            dpNamXB.SelectedDate = null;
+            cboTheLoai.SelectedIndex = -1;
+            sachDangChon = null;
+            dgSach.SelectedIndex = -1;
+        }
+        private void btn_them(object sender, RoutedEventArgs e)
+        {
+            SACH s = new SACH
+            {
+                MaSach = txtMaSach.Text.Trim(),
+                TuaSach = txtTuaSach.Text.Trim(),
+                TacGia = txtTacGia.Text.Trim(),
+                NamXB = LayNamXB(),
+                MaTL = LayTheLoai()
+            };
+            db.SACHes.Add(s);
+            db.SaveChanges();
+            MessageBox.Show("Đã thêm sách thành công!", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Information);
+            loadData();
+            ClearForm();
+        }
+        private void btn_sua(object sender, RoutedEventArgs e)
+        {
+            if(sachDangChon == null){
+                MessageBox.Show("Vui lòng chọn sách để sửa!", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            SACH s = db.SACHes.Find(sachDangChon.MaSach);
+            if (s.MaSach != txtMaSach.Text.Trim()){
+                MessageBox.Show("Không thể sửa Mã Sách!", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            s.TuaSach = txtTuaSach.Text.Trim();
+            s.TacGia = txtTacGia.Text.Trim();
+            s.NamXB = LayNamXB();
+            s.MaTL = LayTheLoai();
+            db.SaveChanges();
+            MessageBox.Show("Đã sửa thông tin sách!", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Information);
+            loadData();
+            ClearForm();
+        }
+        private void btn_xoa(object sender, RoutedEventArgs e)
+        {
+            if (sachDangChon == null){
+                MessageBox.Show("Vui lòng chọn sách để xóa!", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            db.SACHes.Remove(sachDangChon);
+            db.SaveChanges();
+            MessageBox.Show("Đã xóa sách thành công!", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Information);
+            loadData();
+            ClearForm();
+        }
+        private void DgSach_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            sachDangChon = dgSach.SelectedItem as SACH;
+            if (sachDangChon != null)
+            {
+                txtMaSach.Text = sachDangChon.MaSach;
+                txtTuaSach.Text = sachDangChon.TuaSach;
+                txtTacGia.Text = sachDangChon.TacGia;
+                dpNamXB.SelectedDate = sachDangChon.NamXB;
+                cboTheLoai.SelectedValue = sachDangChon.MaTL;
+            }
+        }
+        private void btn_lammoi(object sender, RoutedEventArgs e)
+        {
+            loadData();
+            ClearForm();
+        }
+        private void btn_tim(object sender, RoutedEventArgs e)
+        {
+            string keyword = txt_Tim.Text.Trim().ToLower();
+            List<SACH> ketQua = new List<SACH>();
+            if (keyword == ""){
+                MessageBox.Show("Hãy nhập mã sách để tìm", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            else{
+                foreach (SACH s in db.SACHes){
+                    if (s.MaSach != null && s.MaSach.ToLower().Contains(keyword)){
+                        ketQua.Add(s);
+                    }
+                }
+                if (ketQua.Count > 0){
+                    dgSach.ItemsSource = ketQua;
+                }
+                else{
+                    MessageBox.Show("Không tìm thấy sinh viên nào!", "Thông báo",MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+        }
+        
+
+        private void CboTheLoai_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!cboTheLoai.IsDropDownOpen)
+                return;
+            if (cboTheLoai.SelectedValue == null){
+                dgSach.ItemsSource = db.SACHes.ToList();
+                return;
+            }
+            string maTL = LayTheLoai();
+            List<SACH> loc_CB = new List<SACH>();
+            foreach (SACH s in db.SACHes)
+            {
+                if (s.MaTL == maTL)
+                {
+                    loc_CB.Add(s);
+                }
+            }
+            dgSach.ItemsSource = loc_CB;
+        }
+    }
+}
+
+
+
+
+--bai 4
+using System;
+using System.Data.Entity;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace QUANLYNHANVIEN
+{
+    /// <summary>
+    /// De thi thu 1 - Quan ly nhan vien (WPF .NET Framework + EF6 Database First).
+    /// Yeu cau Entity Data Model tao cac lop: QLNHANVIENEntities, NHANVIEN, PHONGBAN.
+    /// Cac control XAML: txtMaNV, txtHoTen, dpNgaySinh, rbNam, rbNu,
+    /// rbKhac, cboPhongBan, dgNhanVien.
+    /// Cac su kien XAML: btnThem_Click, btnSua_Click, btnXoa_Click,
+    /// btnLamMoi_Click, dgNhanVien_SelectionChanged.
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        private readonly QLNHANVIENEntities db = new QLNHANVIENEntities();
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            TaiDuLieu();
+        }
+
+        // CAU 3: Tai danh sach phong ban va nhan vien.
+        private void TaiDuLieu()
+        {
+            cboPhongBan.ItemsSource = db.PHONGBANs.ToList();
+            cboPhongBan.DisplayMemberPath = "TenPB";
+            cboPhongBan.SelectedValuePath = "MaPB";
+
+            TaiDuLieuNhanVien();
+        }
+
+        private void TaiDuLieuNhanVien()
+        {
+            // Include de cot PHONGBAN.TenPB trong DataGrid hien thi dung.
+            dgNhanVien.ItemsSource = db.NHANVIENs
+                .Include("PHONGBAN")
+                .ToList();
+        }
+
+        // CAU 4: Chon dong tren DataGrid -> dua du lieu len form.
+        private void dgNhanVien_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            NHANVIEN nv = dgNhanVien.SelectedItem as NHANVIEN;
+            if (nv == null)
+                return;
+
+            txtMaNV.Text = nv.MaNV;
+            txtHoTen.Text = nv.HoTen;
+            dpNgaySinh.SelectedDate = nv.NgaySinh;
+            cboPhongBan.SelectedValue = nv.MaPB;
+
+            rbNam.IsChecked = nv.GioiTinh == "Nam";
+            rbNu.IsChecked = nv.GioiTinh == "Nữ";
+            rbKhac.IsChecked = nv.GioiTinh == "Khác";
+
+            // MaNV la khoa chinh: khong cho doi khi sua.
+            txtMaNV.IsReadOnly = true;
+        }
+
+        private string LayGioiTinh()
+        {
+            if (rbNam.IsChecked == true) return "Nam";
+            if (rbNu.IsChecked == true) return "Nữ";
+            if (rbKhac.IsChecked == true) return "Khác";
+            return null;
+        }
+
+        private bool KiemTraDuLieu()
+        {
+            if (string.IsNullOrWhiteSpace(txtMaNV.Text) ||
+                string.IsNullOrWhiteSpace(txtHoTen.Text))
+            {
+                MessageBox.Show("Vui lòng nhập mã nhân viên và họ tên.");
+                return false;
+            }
+
+            if (!dpNgaySinh.SelectedDate.HasValue)
+            {
+                MessageBox.Show("Vui lòng chọn ngày sinh.");
+                return false;
+            }
+
+            if (LayGioiTinh() == null)
+            {
+                MessageBox.Show("Vui lòng chọn giới tính.");
+                return false;
+            }
+
+            if (cboPhongBan.SelectedValue == null)
+            {
+                MessageBox.Show("Vui lòng chọn phòng ban.");
+                return false;
+            }
+
+            return true;
+        }
+
+        // CAU 5: Them nhan vien.
+        private void btnThem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!KiemTraDuLieu()) return;
+
+            string maNV = txtMaNV.Text.Trim();
+            if (db.NHANVIENs.Any(x => x.MaNV == maNV))
+            {
+                MessageBox.Show("Mã nhân viên đã tồn tại.");
+                return;
+            }
+
+            NHANVIEN nv = new NHANVIEN
+            {
+                MaNV = maNV,
+                HoTen = txtHoTen.Text.Trim(),
+                NgaySinh = dpNgaySinh.SelectedDate.Value,
+                GioiTinh = LayGioiTinh(),
+                MaPB = cboPhongBan.SelectedValue.ToString()
+            };
+
+            try
+            {
+                db.NHANVIENs.Add(nv);
+                db.SaveChanges();
+                MessageBox.Show("Thêm nhân viên thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                // Khong giu lai ban ghi them loi trong DbContext.
+                if (db.Entry(nv).State == EntityState.Added)
+                    db.Entry(nv).State = EntityState.Detached;
+                MessageBox.Show("Không thể thêm nhân viên: " + ex.Message);
+            }
+        }
+
+        // CAU 5: Sua nhan vien duoc chon.
+        private void btnSua_Click(object sender, RoutedEventArgs e)
+        {
+            NHANVIEN dangChon = dgNhanVien.SelectedItem as NHANVIEN;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Vui lòng chọn nhân viên cần sửa.");
+                return;
+            }
+
+            if (!KiemTraDuLieu()) return;
+
+            try
+            {
+                NHANVIEN nv = db.NHANVIENs.Find(dangChon.MaNV);
+                if (nv == null)
+                {
+                    MessageBox.Show("Nhân viên không còn tồn tại.");
+                    LamMoiForm();
+                    return;
+                }
+
+                nv.HoTen = txtHoTen.Text.Trim();
+                nv.NgaySinh = dpNgaySinh.SelectedDate.Value;
+                nv.GioiTinh = LayGioiTinh();
+                nv.MaPB = cboPhongBan.SelectedValue.ToString();
+
+                db.SaveChanges();
+                MessageBox.Show("Sửa nhân viên thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Không thể sửa nhân viên: " + ex.Message);
+            }
+        }
+
+        // CAU 5: Xoa nhan vien duoc chon.
+        private void btnXoa_Click(object sender, RoutedEventArgs e)
+        {
+            NHANVIEN dangChon = dgNhanVien.SelectedItem as NHANVIEN;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Vui lòng chọn nhân viên cần xóa.");
+                return;
+            }
+
+            MessageBoxResult traLoi = MessageBox.Show(
+                "Bạn có chắc muốn xóa nhân viên " + dangChon.HoTen + "?",
+                "Xác nhận xóa",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (traLoi != MessageBoxResult.Yes) return;
+
+            try
+            {
+                NHANVIEN nv = db.NHANVIENs.Find(dangChon.MaNV);
+                if (nv == null)
+                {
+                    MessageBox.Show("Nhân viên không còn tồn tại.");
+                    LamMoiForm();
+                    return;
+                }
+
+                db.NHANVIENs.Remove(nv);
+                db.SaveChanges();
+                MessageBox.Show("Xóa nhân viên thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Không thể xóa nhân viên: " + ex.Message);
+            }
+        }
+
+        // CAU 4: Lam moi form va nap lai DataGrid.
+        private void btnLamMoi_Click(object sender, RoutedEventArgs e)
+        {
+            LamMoiForm();
+        }
+
+        private void LamMoiForm()
+        {
+            dgNhanVien.SelectedItem = null;
+
+            txtMaNV.Clear();
+            txtHoTen.Clear();
+            dpNgaySinh.SelectedDate = null;
+            rbNam.IsChecked = false;
+            rbNu.IsChecked = false;
+            rbKhac.IsChecked = false;
+            cboPhongBan.SelectedIndex = -1;
+            txtMaNV.IsReadOnly = false;
+
+            TaiDuLieuNhanVien();
+            txtMaNV.Focus();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            db.Dispose();
+            base.OnClosed(e);
+        }
+    }
+}
+
+
+--bai 5 sach
+using System;
+using System.Data.Entity;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace QUANLYSACH
+{
+    /// <summary>
+    /// Đề thi thử 2 - QUANLYSACH (WPF .NET Framework, EF6 Database First).
+    /// Entity Data Model cần có: QLSACHEntities, SACH, THELOAI.
+    ///
+    /// Tên control trong MainWindow.xaml:
+    /// txtMaSach, txtTenSach, txtTacGia, dpNgayNhap,
+    /// cboTheLoai, dgSach.
+    ///
+    /// Tên sự kiện cần khai báo trong XAML:
+    /// dgSach_SelectionChanged, btnThem_Click, btnSua_Click,
+    /// btnXoa_Click, btnLamMoi_Click.
+    ///
+    /// Các khóa MaSach và MaTL được giả định có kiểu chuỗi (nvarchar).
+    /// Nếu Entity Model tự sinh có tên khác, hãy đổi tên tương ứng.
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        private readonly QLSACHEntities db = new QLSACHEntities();
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            TaiDuLieu();
+        }
+
+        // CÂU 3: Tải thể loại vào ComboBox và sách vào DataGrid.
+        private void TaiDuLieu()
+        {
+            cboTheLoai.ItemsSource = db.THELOAIs.ToList();
+            cboTheLoai.DisplayMemberPath = "TenTL";
+            cboTheLoai.SelectedValuePath = "MaTL";
+
+            TaiDuLieuSach();
+        }
+
+        private void TaiDuLieuSach()
+        {
+            // Trong XAML, cột "Thể loại" sử dụng Binding="{Binding THELOAI.TenTL}".
+            // AsNoTracking giúp tải dữ liệu mới từ CSDL sau các thao tác.
+            dgSach.ItemsSource = db.SACHs
+                .AsNoTracking()
+                .Include("THELOAI")
+                .ToList();
+        }
+
+        // CÂU 4: Chọn một dòng DataGrid -> hiển thị lên các control.
+        private void dgSach_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            SACH sach = dgSach.SelectedItem as SACH;
+            if (sach == null)
+                return;
+
+            txtMaSach.Text = sach.MaSach;
+            txtTenSach.Text = sach.TenSach;
+            txtTacGia.Text = sach.TacGia;
+            dpNgayNhap.SelectedDate = sach.NgayNhap;
+            cboTheLoai.SelectedValue = sach.MaTL;
+
+            // Không cho thay đổi mã sách khi đang chọn để sửa.
+            txtMaSach.IsReadOnly = true;
+        }
+
+        private bool KiemTraDuLieu()
+        {
+            if (string.IsNullOrWhiteSpace(txtMaSach.Text))
+            {
+                MessageBox.Show("Vui lòng nhập mã sách.");
+                txtMaSach.Focus();
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtTenSach.Text))
+            {
+                MessageBox.Show("Vui lòng nhập tên sách.");
+                txtTenSach.Focus();
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtTacGia.Text))
+            {
+                MessageBox.Show("Vui lòng nhập tác giả.");
+                txtTacGia.Focus();
+                return false;
+            }
+
+            if (!dpNgayNhap.SelectedDate.HasValue)
+            {
+                MessageBox.Show("Vui lòng chọn ngày nhập.");
+                return false;
+            }
+
+            if (cboTheLoai.SelectedValue == null)
+            {
+                MessageBox.Show("Vui lòng chọn thể loại.");
+                return false;
+            }
+
+            return true;
+        }
+
+        // CÂU 5: Thêm sách mới.
+        private void btnThem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!KiemTraDuLieu())
+                return;
+
+            string maSach = txtMaSach.Text.Trim();
+            if (db.SACHs.Any(x => x.MaSach == maSach))
+            {
+                MessageBox.Show("Mã sách đã tồn tại.");
+                return;
+            }
+
+            SACH sach = new SACH
+            {
+                MaSach = maSach,
+                TenSach = txtTenSach.Text.Trim(),
+                TacGia = txtTacGia.Text.Trim(),
+                NgayNhap = dpNgayNhap.SelectedDate.Value,
+                MaTL = cboTheLoai.SelectedValue.ToString()
+            };
+
+            try
+            {
+                db.SACHs.Add(sach);
+                db.SaveChanges();
+
+                MessageBox.Show("Thêm sách thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                // Nếu thêm thất bại, bỏ đối tượng đang ở trạng thái Added.
+                if (db.Entry(sach).State == EntityState.Added)
+                    db.Entry(sach).State = EntityState.Detached;
+
+                MessageBox.Show("Không thể thêm sách: " + ex.Message);
+            }
+        }
+
+        // CÂU 5: Sửa sách đang chọn trong DataGrid.
+        private void btnSua_Click(object sender, RoutedEventArgs e)
+        {
+            SACH dangChon = dgSach.SelectedItem as SACH;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Vui lòng chọn sách cần sửa.");
+                return;
+            }
+
+            if (!KiemTraDuLieu())
+                return;
+
+            try
+            {
+                SACH sach = db.SACHs.Find(dangChon.MaSach);
+                if (sach == null)
+                {
+                    MessageBox.Show("Sách không còn tồn tại.");
+                    LamMoiForm();
+                    return;
+                }
+
+                sach.TenSach = txtTenSach.Text.Trim();
+                sach.TacGia = txtTacGia.Text.Trim();
+                sach.NgayNhap = dpNgayNhap.SelectedDate.Value;
+                sach.MaTL = cboTheLoai.SelectedValue.ToString();
+
+                db.SaveChanges();
+
+                MessageBox.Show("Sửa sách thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Không thể sửa sách: " + ex.Message);
+            }
+        }
+
+        // CÂU 5: Xóa sách đang chọn trong DataGrid.
+        private void btnXoa_Click(object sender, RoutedEventArgs e)
+        {
+            SACH dangChon = dgSach.SelectedItem as SACH;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Vui lòng chọn sách cần xóa.");
+                return;
+            }
+
+            MessageBoxResult traLoi = MessageBox.Show(
+                "Bạn có chắc muốn xóa sách '" + dangChon.TenSach + "'?",
+                "Xác nhận xóa",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (traLoi != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                SACH sach = db.SACHs.Find(dangChon.MaSach);
+                if (sach == null)
+                {
+                    MessageBox.Show("Sách không còn tồn tại.");
+                    LamMoiForm();
+                    return;
+                }
+
+                db.SACHs.Remove(sach);
+                db.SaveChanges();
+
+                MessageBox.Show("Xóa sách thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Không thể xóa sách: " + ex.Message);
+            }
+        }
+
+        // CÂU 4: Nút Làm mới: xóa các ô nhập và tải lại DataGrid.
+        private void btnLamMoi_Click(object sender, RoutedEventArgs e)
+        {
+            LamMoiForm();
+        }
+
+        private void LamMoiForm()
+        {
+            dgSach.SelectedItem = null;
+
+            txtMaSach.Clear();
+            txtTenSach.Clear();
+            txtTacGia.Clear();
+            dpNgayNhap.SelectedDate = null;
+            cboTheLoai.SelectedIndex = -1;
+            txtMaSach.IsReadOnly = false;
+
+            TaiDuLieuSach();
+            txtMaSach.Focus();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            db.Dispose();
+            base.OnClosed(e);
+        }
+    }
+}
+
+
+
+--bai 6 san pham
+using System;
+using System.Data.Entity;
+using System.Globalization;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace QUANLYSANPHAM
+{
+    /// <summary>
+    /// Đề thi thử 3 - QUANLYSANPHAM (WPF .NET Framework, EF6 Database First).
+    /// Entity Data Model cần có: QLSANPHAMEntities, SANPHAM, LOAISP.
+    ///
+    /// Tên control trong MainWindow.xaml:
+    /// txtMaSP, txtTenSP, txtDonGia, txtSoLuong, cboLoaiSP, dgSanPham.
+    ///
+    /// Tên sự kiện cần khai báo trong XAML:
+    /// dgSanPham_SelectionChanged, btnThem_Click, btnSua_Click,
+    /// btnXoa_Click, btnLamMoi_Click.
+    ///
+    /// Giả định trong CSDL:
+    /// SANPHAM (MaSP nvarchar, TenSP nvarchar, DonGia decimal(18,2),
+    ///          SoLuong int, MaLoai nvarchar).
+    /// LOAISP (MaLoai nvarchar, TenLoai nvarchar).
+    /// Nếu tên DbContext/DbSet hoặc kiểu dữ liệu Entity tự sinh khác,
+    /// cần thay tên/kiểu dữ liệu tương ứng.
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        private readonly QLSANPHAMEntities db = new QLSANPHAMEntities();
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            TaiDuLieu();
+        }
+
+        // CÂU 3: Tải loại sản phẩm lên ComboBox và sản phẩm lên DataGrid.
+        private void TaiDuLieu()
+        {
+            cboLoaiSP.ItemsSource = db.LOAISPs.ToList();
+            cboLoaiSP.DisplayMemberPath = "TenLoai";
+            cboLoaiSP.SelectedValuePath = "MaLoai";
+
+            TaiDuLieuSanPham();
+        }
+
+        private void TaiDuLieuSanPham()
+        {
+            // Cột tên loại trong DataGrid có thể Binding="{Binding LOAISP.TenLoai}".
+            // AsNoTracking lấy dữ liệu mới khi tải lại, Include lấy tên loại SP.
+            dgSanPham.ItemsSource = db.SANPHAMs
+                .AsNoTracking()
+                .Include("LOAISP")
+                .ToList();
+        }
+
+        // CÂU 4: Chọn dòng DataGrid -> đưa dữ liệu lên các control.
+        private void dgSanPham_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            SANPHAM sp = dgSanPham.SelectedItem as SANPHAM;
+            if (sp == null)
+                return;
+
+            txtMaSP.Text = sp.MaSP;
+            txtTenSP.Text = sp.TenSP;
+            txtDonGia.Text = sp.DonGia.ToString(CultureInfo.CurrentCulture);
+            txtSoLuong.Text = sp.SoLuong.ToString();
+            cboLoaiSP.SelectedValue = sp.MaLoai;
+
+            // Không sửa mã sản phẩm (khóa chính) khi đang chọn dòng.
+            txtMaSP.IsReadOnly = true;
+        }
+
+        // Kiểm tra thông tin đầu vào và chuyển Đơn giá, Số lượng sang kiểu số.
+        private bool KiemTraDuLieu(out decimal donGia, out int soLuong)
+        {
+            donGia = 0;
+            soLuong = 0;
+
+            if (string.IsNullOrWhiteSpace(txtMaSP.Text))
+            {
+                MessageBox.Show("Vui lòng nhập mã sản phẩm.");
+                txtMaSP.Focus();
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtTenSP.Text))
+            {
+                MessageBox.Show("Vui lòng nhập tên sản phẩm.");
+                txtTenSP.Focus();
+                return false;
+            }
+
+            if (!decimal.TryParse(txtDonGia.Text.Trim(),
+                                  NumberStyles.Number,
+                                  CultureInfo.CurrentCulture,
+                                  out donGia) || donGia < 0)
+            {
+                MessageBox.Show("Đơn giá phải là số hợp lệ và không được âm.");
+                txtDonGia.Focus();
+                return false;
+            }
+
+            if (!int.TryParse(txtSoLuong.Text.Trim(), out soLuong) || soLuong < 0)
+            {
+                MessageBox.Show("Số lượng phải là số nguyên không âm.");
+                txtSoLuong.Focus();
+                return false;
+            }
+
+            if (cboLoaiSP.SelectedValue == null)
+            {
+                MessageBox.Show("Vui lòng chọn loại sản phẩm.");
+                cboLoaiSP.Focus();
+                return false;
+            }
+
+            return true;
+        }
+
+        // CÂU 5: Thêm sản phẩm mới.
+        private void btnThem_Click(object sender, RoutedEventArgs e)
+        {
+            decimal donGia;
+            int soLuong;
+            if (!KiemTraDuLieu(out donGia, out soLuong))
+                return;
+
+            string maSP = txtMaSP.Text.Trim();
+            if (db.SANPHAMs.Any(x => x.MaSP == maSP))
+            {
+                MessageBox.Show("Mã sản phẩm đã tồn tại.");
+                return;
+            }
+
+            SANPHAM sp = new SANPHAM
+            {
+                MaSP = maSP,
+                TenSP = txtTenSP.Text.Trim(),
+                DonGia = donGia,
+                SoLuong = soLuong,
+                MaLoai = cboLoaiSP.SelectedValue.ToString()
+            };
+
+            try
+            {
+                db.SANPHAMs.Add(sp);
+                db.SaveChanges();
+
+                MessageBox.Show("Thêm sản phẩm thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                // Bỏ đối tượng ở trạng thái Added nếu thêm thất bại.
+                if (db.Entry(sp).State == EntityState.Added)
+                    db.Entry(sp).State = EntityState.Detached;
+
+                MessageBox.Show("Không thể thêm sản phẩm: " + ex.Message);
+            }
+        }
+
+        // CÂU 5: Sửa sản phẩm đang chọn trong DataGrid.
+        private void btnSua_Click(object sender, RoutedEventArgs e)
+        {
+            SANPHAM dangChon = dgSanPham.SelectedItem as SANPHAM;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Vui lòng chọn sản phẩm cần sửa.");
+                return;
+            }
+
+            decimal donGia;
+            int soLuong;
+            if (!KiemTraDuLieu(out donGia, out soLuong))
+                return;
+
+            try
+            {
+                SANPHAM sp = db.SANPHAMs.Find(dangChon.MaSP);
+                if (sp == null)
+                {
+                    MessageBox.Show("Sản phẩm không còn tồn tại.");
+                    LamMoiForm();
+                    return;
+                }
+
+                sp.TenSP = txtTenSP.Text.Trim();
+                sp.DonGia = donGia;
+                sp.SoLuong = soLuong;
+                sp.MaLoai = cboLoaiSP.SelectedValue.ToString();
+
+                db.SaveChanges();
+                MessageBox.Show("Sửa sản phẩm thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Không thể sửa sản phẩm: " + ex.Message);
+            }
+        }
+
+        // CÂU 5: Xóa sản phẩm đang chọn trong DataGrid.
+        private void btnXoa_Click(object sender, RoutedEventArgs e)
+        {
+            SANPHAM dangChon = dgSanPham.SelectedItem as SANPHAM;
+            if (dangChon == null)
+            {
+                MessageBox.Show("Vui lòng chọn sản phẩm cần xóa.");
+                return;
+            }
+
+            MessageBoxResult traLoi = MessageBox.Show(
+                "Bạn có chắc muốn xóa sản phẩm '" + dangChon.TenSP + "'?",
+                "Xác nhận xóa",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (traLoi != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                SANPHAM sp = db.SANPHAMs.Find(dangChon.MaSP);
+                if (sp == null)
+                {
+                    MessageBox.Show("Sản phẩm không còn tồn tại.");
+                    LamMoiForm();
+                    return;
+                }
+
+                db.SANPHAMs.Remove(sp);
+                db.SaveChanges();
+
+                MessageBox.Show("Xóa sản phẩm thành công!");
+                LamMoiForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Không thể xóa sản phẩm: " + ex.Message);
+            }
+        }
+
+        // CÂU 4: Nhấn Làm mới để xóa các ô nhập và tải lại DataGrid.
+        private void btnLamMoi_Click(object sender, RoutedEventArgs e)
+        {
+            LamMoiForm();
+        }
+
+        private void LamMoiForm()
+        {
+            dgSanPham.SelectedItem = null;
+
+            txtMaSP.Clear();
+            txtTenSP.Clear();
+            txtDonGia.Clear();
+            txtSoLuong.Clear();
+            cboLoaiSP.SelectedIndex = -1;
+            txtMaSP.IsReadOnly = false;
+
+            TaiDuLieuSanPham();
+            txtMaSP.Focus();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            db.Dispose();
+            base.OnClosed(e);
+        }
+    }
+}
+
+
+
+
+
